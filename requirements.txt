@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+pandas
+fastparquet
+pyarrow
+httpx
