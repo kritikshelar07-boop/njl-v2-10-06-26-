@@ -321,7 +321,29 @@ body {
     MAIN CONTENT
 ══════════════════════════════════════════ */
 .main { flex: 1; padding: 24px 28px 40px; background: var(--off-white); }
-.results-bar { display: flex; align-items: center; justify-content: flex-end; margin-bottom: 20px; }
+.results-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.bar-left { display: flex; align-items: center; gap: 10px; }
+.dl-catalogue-btn {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer;
+  background: var(--royal-deep); color: #fff;
+  font-size: 12px; font-weight: 700; letter-spacing: .4px;
+  box-shadow: var(--shadow-sm); transition: background .2s, opacity .2s;
+}
+.dl-catalogue-btn:hover:not(:disabled) { background: var(--royal-mid); }
+.dl-catalogue-btn:disabled { opacity: .6; cursor: not-allowed; }
+.dl-selective-btn {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 16px; border-radius: 8px; cursor: pointer;
+  background: transparent; color: var(--royal-deep);
+  border: 2px solid var(--royal-deep);
+  font-size: 12px; font-weight: 700; letter-spacing: .4px;
+  box-shadow: var(--shadow-sm); transition: background .2s, color .2s, opacity .2s;
+}
+.dl-selective-btn:hover:not(:disabled) { background: var(--royal-deep); color: #fff; }
+.dl-selective-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
 .bar-right { display: flex; align-items: center; gap: 16px; }
 
 .results-count { font-size: 13px; color: var(--text-muted); }
@@ -636,3 +658,45 @@ mark { background: rgba(201,150,26,.22); color: var(--royal-deep); border-radius
   background: #b45309;
   color: #fff;
 }
+
+/* ── PASTE-INPUT FILTER TEXTAREA ─────────────────────────────────────────── */
+.paste-filter-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-main);
+  background: var(--royal-tint, #f8f6ff);
+  border: 1.5px solid var(--border, #e0d8f0);
+  border-radius: 8px;
+  resize: vertical;
+  min-height: 68px;
+  transition: border-color .18s, box-shadow .18s;
+  outline: none;
+  letter-spacing: 0.01em;
+  line-height: 1.6;
+}
+.paste-filter-textarea::placeholder {
+  color: var(--text-light, #a09bb5);
+  font-weight: 400;
+}
+.paste-filter-textarea:focus {
+  border-color: var(--gold-mid, #c9a84c);
+  box-shadow: 0 0 0 3px rgba(201,168,76,.13);
+  background: #fff;
+}
+
+/* hint line below textarea */
+.paste-filter-hint {
+  min-height: 16px;
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 4px;
+  padding: 0 2px;
+  transition: color .2s;
+  color: transparent;
+}
+.paste-filter-hint--ok   { color: #2e7d32; }
+.paste-filter-hint--warn { color: #b45309; }
