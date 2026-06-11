@@ -310,12 +310,6 @@ def _refresh_loop():
             log.error(f"[refresh] Error during background reload: {exc}")
 
 
-# ─── Initial Load ─────────────────────────────────────────────────────────────
-load_data()
-
-refresh_thread = threading.Thread(target=_refresh_loop, daemon=True)
-refresh_thread.start()
-
 # ─── FastAPI App ──────────────────────────────────────────────────────────────
 app = FastAPI(title="NJL Catalogue API", version="2.0")
 
@@ -326,6 +320,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ─── Initial Load ─────────────────────────────────────────────────────────────
+load_data()
+
+refresh_thread = threading.Thread(target=_refresh_loop, daemon=True)
+refresh_thread.start()
 
 # ─── Static Asset Routes ──────────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
@@ -444,7 +444,8 @@ def api_inventory(
         row_text    = ROW_TEXT_CACHE
 
     if df is None:
-        return {"error": "Data not yet loaded — please retry in a moment."}, 503
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Data not yet loaded — please retry in a moment.")
 
     # ── Filters ──
     import re as _re2
