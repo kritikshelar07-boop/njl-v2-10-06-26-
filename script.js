@@ -50,7 +50,13 @@ document.addEventListener('DOMContentLoaded', async function init() {
       populateDropdown('sub_product_group'),
       populateDropdown('sku_status'),
     ]);
-    await render();
+    try {
+      await render();
+    } catch (renderErr) {
+      console.error("render() failed during init:", renderErr);
+      document.getElementById('cardGrid').innerHTML =
+        `<div style="grid-column:1/-1;color:#c0392b;padding:20px;">⚠️ Failed to load inventory: ${renderErr.message}</div>`;
+    }
     // Pre-load dup-HUID data so badge shows count immediately
     loadDupData();
   } catch (error) {
@@ -519,6 +525,10 @@ async function render() {
 
   try {
     const res = await fetch(url);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => `HTTP ${res.status}`);
+      throw new Error(`Server returned ${res.status}: ${errText}`);
+    }
     const responseData = await res.json();
     const total = responseData.total_filtered;
     const pageData = responseData.data;
@@ -553,6 +563,7 @@ async function render() {
   } catch (e) {
     grid.style.opacity = '';
     grid.style.pointerEvents = '';
+    grid.innerHTML = `<div style="grid-column:1/-1;color:#c0392b;padding:20px;">⚠️ Failed to load inventory: ${e.message}</div>`;
     console.error("Error fetching inventory data", e);
   }
 }
