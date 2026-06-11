@@ -1,9 +1,9 @@
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Indriya Jewels — Product Catalogue</title>
+<title>Novel Jewels — Product Catalogue</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="style.css"/>
@@ -14,11 +14,11 @@
   <div class="header-top">
     <a href="https://www.facebook.com/p/Indriya-Jewels-61560479585835/" target="_blank" rel="noopener" class="brand-block">
       <div class="logo-ring">
-        <img src="logo.jpg" alt="Indriya Jewels" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>
+        <img src="https://s7ap1.scene7.com/is/content/noveljewelsprod/Indriya-Logo" alt="Indriya Jewels" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>
         <div class="logo-fallback" style="display: none;">IJ</div>
       </div>
       <div class="brand-text">
-        <div class="brand-name">Indriya <span>Jewels</span></div>
+        <div class="brand-name">Novel <span>Jewels</span></div>
         <div class="brand-tagline">Product Catalogue · Inventory Dashboard</div>
       </div>
     </a>
@@ -149,14 +149,14 @@
     <!-- ── VENDOR ── -->
     <div class="filter-block">
       <div class="filter-label">Vendor Account
-        <button class="filter-clear-btn" onclick="clearDropdown('vendor')">Clear</button>
+        <button class="filter-clear-btn" onclick="clearFilter('vendor')">Clear</button>
       </div>
       <div id="vendor-chips" class="active-chips"></div>
       <div class="filter-search">
         <svg class="fs-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" id="vendorSearch" placeholder="Search or paste multiple…" oninput="filterDropdownList('vendor')" onpaste="handleDropdownPaste(event,'vendor')"/>
+        <input type="text" id="vendorPasteInput" placeholder="Paste or type, then press Enter — comma · newline · space all work" oninput="handlePasteFilterInput(event,'vendor')" onpaste="handlePasteFilterPaste(event,'vendor')" onkeydown="handlePasteFilterKeydown(event,'vendor')"/>
       </div>
-      <div class="filter-list dropdown-list" id="vendorList"></div>
+      <div id="vendorPasteHint" class="paste-filter-hint"></div>
     </div>
 
     <div class="sidebar-divider"></div>
@@ -169,10 +169,9 @@
       <div id="warehouse-chips" class="active-chips"></div>
       <div class="filter-search">
         <svg class="fs-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" id="warehouseFilterSearch" placeholder="Search or paste multiple…" oninput="filterList('warehouse')" onpaste="handleFilterPaste(event,'warehouse')"/>
+        <input type="text" id="warehousePasteInput" placeholder="Paste or type, then press Enter — comma · newline · space all work" oninput="handlePasteFilterInput(event,'warehouse')" onpaste="handlePasteFilterPaste(event,'warehouse')" onkeydown="handlePasteFilterKeydown(event,'warehouse')"/>
       </div>
-      <div class="filter-list" id="warehouseList"></div>
-      <div class="filter-no-results" id="warehouseNoResults">No matches found</div>
+      <div id="warehousePasteHint" class="paste-filter-hint"></div>
     </div>
 
     <div class="sidebar-divider"></div>
@@ -185,10 +184,9 @@
       <div id="serial-chips" class="active-chips"></div>
       <div class="filter-search">
         <svg class="fs-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" id="serialFilterSearch" placeholder="Search or paste multiple…" oninput="filterList('serial')" onpaste="handleFilterPaste(event,'serial')"/>
+        <input type="text" id="serialPasteInput" placeholder="Paste or type, then press Enter — comma · newline · space all work" oninput="handlePasteFilterInput(event,'serial')" onpaste="handlePasteFilterPaste(event,'serial')" onkeydown="handlePasteFilterKeydown(event,'serial')"/>
       </div>
-      <div class="filter-list" id="serialList"></div>
-      <div class="filter-no-results" id="serialNoResults">No matches found</div>
+      <div id="serialPasteHint" class="paste-filter-hint"></div>
     </div>
 
     <div class="sidebar-divider"></div>
@@ -201,10 +199,9 @@
       <div id="huid-chips" class="active-chips"></div>
       <div class="filter-search">
         <svg class="fs-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" id="huidFilterSearch" placeholder="Search or paste multiple…" oninput="filterList('huid')" onpaste="handleFilterPaste(event,'huid')"/>
+        <input type="text" id="huidPasteInput" placeholder="Paste or type, then press Enter — comma · newline · space all work" oninput="handlePasteFilterInput(event,'huid')" onpaste="handlePasteFilterPaste(event,'huid')" onkeydown="handlePasteFilterKeydown(event,'huid')"/>
       </div>
-      <div class="filter-list" id="huidList"></div>
-      <div class="filter-no-results" id="huidNoResults">No matches found</div>
+      <div id="huidPasteHint" class="paste-filter-hint"></div>
     </div>
 
     <div class="sidebar-divider"></div>
@@ -217,10 +214,9 @@
       <div id="location-chips" class="active-chips"></div>
       <div class="filter-search">
         <svg class="fs-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" id="locationFilterSearch" placeholder="Search or paste multiple…" oninput="filterList('location')" onpaste="handleFilterPaste(event,'location')"/>
+        <input type="text" id="locationPasteInput" placeholder="Paste or type, then press Enter — comma · newline · space all work" oninput="handlePasteFilterInput(event,'location')" onpaste="handlePasteFilterPaste(event,'location')" onkeydown="handlePasteFilterKeydown(event,'location')"/>
       </div>
-      <div class="filter-list" id="locationList"></div>
-      <div class="filter-no-results" id="locationNoResults">No matches found</div>
+      <div id="locationPasteHint" class="paste-filter-hint"></div>
     </div>
 
     <button class="reset-all-btn" onclick="resetAll()">↺ &nbsp;Reset All Filters</button>
@@ -228,6 +224,26 @@
 
   <main class="main">
     <div class="results-bar">
+      <div class="bar-left">
+        <button class="dl-catalogue-btn" id="dlCatalogueBtn" onclick="downloadCatalogue()" title="Download full catalogue as CSV">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Download Catalogue
+        </button>
+        <button class="dl-selective-btn" id="dlSelectiveBtn" onclick="downloadSelective()" title="Download only the currently filtered items as CSV">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+            <line x1="4" y1="6" x2="20" y2="6"/>
+            <line x1="7" y1="10" x2="17" y2="10"/>
+          </svg>
+          Download Selective
+        </button>
+      </div>
       <div class="bar-right">
         <label style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; cursor:pointer; color:var(--royal-deep); margin-right: 15px;">
           <input type="checkbox" id="selectAllPage" onchange="toggleSelectAllPage(this)" style="width:16px;height:16px;cursor:pointer;">
