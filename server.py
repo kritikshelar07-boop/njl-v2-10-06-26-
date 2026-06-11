@@ -21,7 +21,8 @@ import pandas as pd
 import uvicorn
 import httpx                          # lighter than requests; in requirements.txt
 from fastapi import FastAPI, Query
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
+import io
 from fastapi.middleware.cors import CORSMiddleware
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
@@ -39,7 +40,7 @@ HTML_FILE  = os.path.join(BASE_DIR, "index.html")
 # Azure public blob URL — update this if the container/blob path ever changes
 BLOB_URL = os.environ.get(
     "PARQUET_BLOB_URL",
-    "https://njlprodimages.blob.core.windows.net/products/master_serial_enriched.parquet",
+    "https://njlprodimages.blob.core.windows.net/protopisfolder/master_serial_enriched.parquet",
 )
 
 # Local cache path in /tmp (survives within a Render dyno session)
@@ -336,15 +337,33 @@ def serve_html():
 
 @app.get("/style.css")
 def get_css():
-    return FileResponse(os.path.join(BASE_DIR, "style.css"))
+    p = os.path.join(BASE_DIR, "style.css")
+    if not os.path.exists(p):
+        return HTMLResponse("/* style.css not found */", status_code=404)
+    return FileResponse(p, media_type="text/css")
 
 @app.get("/script.js")
 def get_js():
-    return FileResponse(os.path.join(BASE_DIR, "script.js"))
+    p = os.path.join(BASE_DIR, "script.js")
+    if not os.path.exists(p):
+        return HTMLResponse("// script.js not found", status_code=404)
+    return FileResponse(p, media_type="application/javascript")
 
 @app.get("/logo.jpg")
 def get_logo():
-    return FileResponse(os.path.join(BASE_DIR, "logo.jpg"))
+    p = os.path.join(BASE_DIR, "logo.jpg")
+    if not os.path.exists(p):
+        from fastapi.responses import Response as _R
+        return _R(status_code=204)
+    return FileResponse(p, media_type="image/jpeg")
+
+@app.get("/favicon.ico")
+def get_favicon():
+    p = os.path.join(BASE_DIR, "favicon.ico")
+    if not os.path.exists(p):
+        from fastapi.responses import Response as _R
+        return _R(status_code=204)
+    return FileResponse(p, media_type="image/x-icon")
 
 # ─── API: Health / Stats ──────────────────────────────────────────────────────
 @app.get("/api/stats")
@@ -428,24 +447,43 @@ def api_inventory(
         return {"error": "Data not yet loaded — please retry in a moment."}, 503
 
     # ── Filters ──
+    import re as _re2
+    # Helper: split a paste-filter param on every human separator variation,
+    # normalise to uppercase for case-insensitive matching.
+    def _split_paste(param: str) -> set:
+        # Primary split on explicit separators, then secondary split on whitespace.
+        # ERP codes are never multi-word, so spaces always delimit separate codes.
+        primary = _re2.split(r"[,;|\t\n\r]+", param)
+        tokens = []
+        for tok in primary:
+            tok = tok.strip()
+            if not tok:
+                continue
+            if ' ' in tok:
+                tokens.extend(t.strip() for t in tok.split() if t.strip())
+            else:
+                tokens.append(tok)
+        return {t.upper() for t in tokens if t}
+
+    # All paste-input filters are case-insensitive (frontend also uppercases)
     if serials.strip():
-        s_set = {s.strip() for s in serials.split(",") if s.strip()}
-        df    = df[df["SERIALNUMBER"].isin(s_set)]
+        s_set = _split_paste(serials)
+        df    = df[df["SERIALNUMBER"].str.upper().isin(s_set)]
 
     if huids.strip():
-        h_set = {h.strip() for h in huids.split(",") if h.strip()}
+        h_set = _split_paste(huids)
         mask  = df["HUID"].apply(
-            lambda cell: any(tok.strip() in h_set for tok in str(cell).split(",") if tok.strip())
+            lambda cell: any(tok.strip().upper() in h_set for tok in str(cell).split(",") if tok.strip())
         )
         df = df[mask]
 
     if warehouses.strip():
-        w_set = {w.strip() for w in warehouses.split(",") if w.strip()}
-        df    = df[df["WAREHOUSE"].isin(w_set)]
+        w_set = _split_paste(warehouses)
+        df    = df[df["WAREHOUSE"].str.upper().isin(w_set)]
 
     if locations.strip() and "LOCATION" in df.columns:
-        l_set = {l.strip() for l in locations.split(",") if l.strip()}
-        df    = df[df["LOCATION"].isin(l_set)]
+        l_set = _split_paste(locations)
+        df    = df[df["LOCATION"].str.upper().isin(l_set)]
 
     def apply_exact(df_in, col, param):
         if not param.strip():
@@ -458,7 +496,10 @@ def api_inventory(
     df = apply_exact(df, "Product_Group",     product_groups)
     df = apply_exact(df, "Sub_Product_Group", sub_prod_grps)
     df = apply_exact(df, "PWC_SKUSTATUS",     sku_statuses)
-    df = apply_exact(df, "VENDACCOUNT",       vendors)
+    # Vendor is a paste-input filter — case-insensitive, comma/space separated
+    if vendors.strip():
+        v_set = _split_paste(vendors)
+        df    = df[df["VENDACCOUNT"].str.upper().isin(v_set)]
 
     if q.strip():
         import re as _re
@@ -511,6 +552,145 @@ def api_duplicate_huids(
     start = (page - 1) * page_size
     return {"total": total, "page": page, "page_size": page_size,
             "data": data[start : start + page_size]}
+
+
+# ─── API: Full Catalogue Download ─────────────────────────────────────────────
+@app.get("/api/download-catalogue")
+def api_download_catalogue():
+    """
+    Streams the entire dataset as a CSV file.
+    CSV skips all Excel formatting overhead — ~10x faster than xlsx for large frames.
+    """
+    with _data_lock:
+        df = df_global
+
+    if df is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Data not yet loaded.")
+
+    log.info(f"[download] Generating full catalogue CSV ({len(df):,} rows)…")
+
+    buf = io.StringIO()
+    df.to_csv(buf, index=False)
+    buf.seek(0)
+
+    from datetime import date
+    filename = f"Indriya_Catalogue_{date.today().isoformat()}.csv"
+    log.info(f"[download] Streaming {filename}")
+
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+# ─── API: Filtered / Selective Download ──────────────────────────────────────
+@app.get("/api/download-selective")
+def api_download_selective(
+    sort:           str = Query("default"),
+    q:              str = Query(""),
+    serials:        str = Query(""),
+    huids:          str = Query(""),
+    warehouses:     str = Query(""),
+    locations:      str = Query(""),
+    categories:     str = Query(""),
+    subcategories:  str = Query(""),
+    product_groups: str = Query(""),
+    sub_prod_grps:  str = Query(""),
+    sku_statuses:   str = Query(""),
+    vendors:        str = Query(""),
+):
+    """
+    Streams the currently-filtered subset of the dataset as a CSV file.
+    Accepts the exact same filter/sort params as /api/inventory (minus pagination).
+    """
+    with _data_lock:
+        df       = df_global
+        row_text = ROW_TEXT_CACHE
+
+    if df is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Data not yet loaded.")
+
+    # ── Apply the same filter logic as /api/inventory ──
+    import re as _re2
+
+    def _split_paste(param: str) -> set:
+        primary = _re2.split(r"[,;|\t\n\r]+", param)
+        tokens = []
+        for tok in primary:
+            tok = tok.strip()
+            if not tok:
+                continue
+            if ' ' in tok:
+                tokens.extend(t.strip() for t in tok.split() if t.strip())
+            else:
+                tokens.append(tok)
+        return {t.upper() for t in tokens if t}
+
+    if serials.strip():
+        s_set = _split_paste(serials)
+        df    = df[df["SERIALNUMBER"].str.upper().isin(s_set)]
+
+    if huids.strip():
+        h_set = _split_paste(huids)
+        mask  = df["HUID"].apply(
+            lambda cell: any(tok.strip().upper() in h_set for tok in str(cell).split(",") if tok.strip())
+        )
+        df = df[mask]
+
+    if warehouses.strip():
+        w_set = _split_paste(warehouses)
+        df    = df[df["WAREHOUSE"].str.upper().isin(w_set)]
+
+    if locations.strip() and "LOCATION" in df.columns:
+        l_set = _split_paste(locations)
+        df    = df[df["LOCATION"].str.upper().isin(l_set)]
+
+    def apply_exact(df_in, col, param):
+        if not param.strip():
+            return df_in
+        vals = {v.strip() for v in param.split("|") if v.strip()}
+        return df_in[df_in[col].isin(vals)] if vals else df_in
+
+    df = apply_exact(df, "Category",          categories)
+    df = apply_exact(df, "Subcategory",       subcategories)
+    df = apply_exact(df, "Product_Group",     product_groups)
+    df = apply_exact(df, "Sub_Product_Group", sub_prod_grps)
+    df = apply_exact(df, "PWC_SKUSTATUS",     sku_statuses)
+
+    if vendors.strip():
+        v_set = _split_paste(vendors)
+        df    = df[df["VENDACCOUNT"].str.upper().isin(v_set)]
+
+    if q.strip():
+        import re as _re
+        terms    = [t.lower() for t in _re.split(r"[,\s]+", q.strip()) if t.strip()]
+        row_text = row_text.loc[df.index]
+        for term in terms:
+            mask     = row_text.str.contains(term, na=False, regex=False)
+            df       = df[mask]
+            row_text = row_text.loc[df.index]
+
+    if sort in SORT_MAP:
+        sort_col, ascending = SORT_MAP[sort]
+        df = df.sort_values(sort_col, ascending=ascending, kind="stable")
+
+    log.info(f"[download-selective] Streaming {len(df):,} filtered rows as CSV…")
+
+    buf = io.StringIO()
+    df.to_csv(buf, index=False)
+    buf.seek(0)
+
+    from datetime import date
+    filename = f"Indriya_Selective_{date.today().isoformat()}.csv"
+
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 
 # ─── API: Manual Refresh Trigger (optional, can be secured) ──────────────────
 @app.post("/api/refresh")
